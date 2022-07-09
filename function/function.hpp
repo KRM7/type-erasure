@@ -9,16 +9,11 @@
 
 namespace detail
 {
-    template<typename Derived>
-    struct Cloneable
-    {
-        std::unique_ptr<Derived> clone() { return std::make_unique<Derived>(static_cast<Derived>(*this)); }
-    };
-
     template<typename Ret, typename... Args>
-    struct FunctionImplBase : public Cloneable<FunctionImplBase<Ret, Args...>>
+    struct FunctionImplBase
     {
         virtual Ret invoke(Args...) = 0;
+        virtual std::unique_ptr<FunctionImplBase> clone() const = 0;
         virtual ~FunctionImplBase() = default;
     };
 
@@ -30,6 +25,11 @@ namespace detail
         Ret invoke(Args... args) override
         {
             return std::invoke(func_, std::move(args)...);
+        }
+
+        std::unique_ptr<FunctionImplBase<Ret, Args...>> clone() const override
+        {
+            return std::make_unique<FunctionImpl<Ret, Args...>>(data_);
         }
 
         Callable func_;
