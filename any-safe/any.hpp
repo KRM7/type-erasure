@@ -59,17 +59,8 @@ namespace any
             return *this;
         }
 
-        Any(Any&& other) noexcept : Any()
-        {
-            swap(other);
-        }
-
-        Any& operator=(Any&& rhs) noexcept
-        {
-            if (this == &rhs) return *this;
-            swap(rhs);
-            return *this;
-        }
+        Any(Any&&)            = default;
+        Any& operator=(Any&&) = default;
 
         bool has_value() const noexcept
         { 
