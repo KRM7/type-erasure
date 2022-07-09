@@ -29,7 +29,7 @@ namespace detail
 
         std::unique_ptr<FunctionImplBase<Ret, Args...>> clone() const override
         {
-            return std::make_unique<FunctionImpl<Ret, Args...>>(data_);
+            return std::make_unique<FunctionImpl<Callable, Ret, Args...>>(func_);
         }
 
         Callable func_;
