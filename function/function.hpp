@@ -5,7 +5,6 @@
 #include <functional>
 #include <memory>
 #include <type_traits>
-#include <stdexcept>
 
 namespace detail
 {
@@ -24,7 +23,7 @@ namespace detail
 
         Ret invoke(Args... args) override
         {
-            return std::invoke(func_, std::move(args)...);
+            return std::invoke(func_, std::forward<Args>(args)...);
         }
 
         std::unique_ptr<FunctionImplBase<Ret, Args...>> clone() const override
@@ -49,6 +48,15 @@ public:
     requires (!std::is_same_v<std::remove_reference_t<F>, Function<R, Args...>> &&
               std::is_invocable_r_v<R, std::remove_reference_t<F>, Args...>)
     Function(F&& f) : fptr_(std::make_unique<detail::FunctionImpl<F, R, Args...>>(std::forward<F>(f))) {}
+
+    template<typename F>
+    requires (!std::is_same_v<std::remove_reference_t<F>, Function<R, Args...>>&&
+              std::is_invocable_r_v<R, std::remove_reference_t<F>, Args...>)
+    Function& operator=(F&& f)
+    {
+        fptr_ = std::make_unique<detail::FunctionImpl<F, R, Args...>>(std::forward<F>(f));
+        return *this;
+    }
     
     Function(const Function& other) : fptr_(other.fptr_->clone()) {}
 
@@ -66,7 +74,7 @@ public:
 
     R operator()(Args... args)
     {
-        return fptr_->invoke(std::move(args)...);
+        return fptr_->invoke(std::forward<Args>(args)...);
     }
 
     operator bool() const noexcept
