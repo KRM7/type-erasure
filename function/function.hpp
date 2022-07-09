@@ -48,11 +48,9 @@ public:
     template<typename F>
     requires (!std::is_same_v<std::remove_reference_t<F>, Function<R, Args...>> &&
               std::is_invocable_r_v<R, std::remove_reference_t<F>, Args...>)
-    Function(F&& f) : fptr_(std::make_unique<detail::FunctionImpl<F, R, Args...>>(std::forward<F>(f)))
-    {}
+    Function(F&& f) : fptr_(std::make_unique<detail::FunctionImpl<F, R, Args...>>(std::forward<F>(f))) {}
     
-    Function(const Function& other) : fptr_(other.fptr_->clone())
-    {}
+    Function(const Function& other) : fptr_(other.fptr_->clone()) {}
 
     Function& operator=(const Function& rhs)
     {
@@ -63,17 +61,8 @@ public:
         return *this;
     }
 
-    Function(Function&& other) noexcept : Function()
-    {
-        this->swap(other);
-    }
-
-    Function& operator=(Function&& rhs) noexcept
-    {
-        if (this == &rhs) return *this;
-        this->swap(rhs);
-        return *this;
-    }
+    Function(Function&&)            = default;
+    Function& operator=(Function&&) = default;
 
     R operator()(Args... args)
     {
