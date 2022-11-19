@@ -2,15 +2,15 @@
 #include <iostream>
 
 template<typename T>
-T square(const T& n)
+static constexpr T square(const T& n) noexcept
 {
     return n * n;
 }
 
-template<typename T1, typename T2>
 struct add
 {
-    auto operator()(const T1& lhs, const T2& rhs)
+    template<typename T1, typename T2>
+    constexpr auto operator()(const T1& lhs, const T2& rhs) const noexcept(noexcept(lhs + rhs))
     {
         return lhs + rhs;
     }
@@ -37,11 +37,14 @@ int main()
     std::cout << "3 * 3 = " << sq(3) << "\n";
 
     // functor
-    FunctionRef<double(double, int)> adder = add<double, double>();
+    FunctionRef<double(double, int)> adder = add{};
     std::cout << "4 + 7 = " << adder(4.0, 7) << "\n";
 
     // member ptr
     FunctionRef<double(value*)> getter = &value::val;
     value val;
     std::cout << "value: " << getter(&val) << "\n";
+
+    // constexpr
+    constexpr FunctionRef<int(int)> sq2 = square<int>;
 }

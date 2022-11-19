@@ -4,6 +4,7 @@
 #include <utility>
 #include <functional>
 #include <type_traits>
+#include <memory>
 
 template<typename...>
 class FunctionRef;
@@ -12,22 +13,25 @@ template<typename Ret, typename... Args>
 class FunctionRef<Ret(Args...)>
 {
 public:
-    FunctionRef() = default;
+    constexpr FunctionRef() noexcept :
+        callable_(nullptr), invoke_(nullptr)
+    {}
 
     template<typename Callable>
-    requires (!std::is_same_v<std::remove_reference_t<Callable>, FunctionRef<Ret, Args...>> &&
+    requires(!std::is_same_v<std::remove_cvref_t<Callable>, FunctionRef> && // This isnt the copy/move ctor
               std::is_invocable_r_v<Ret, std::remove_reference_t<Callable>, Args...>)
-    FunctionRef(Callable&& f) :
-        callable_(&f),
-        invoke_([](void* f, Args... args) -> Ret { return std::invoke(*static_cast<std::remove_reference_t<Callable>*>(f), std::forward<Args>(args)...); }) {}
+    constexpr FunctionRef(Callable&& f) noexcept :
+        callable_(std::addressof(f)),
+        invoke_(invoke_fn<std::remove_reference_t<Callable>>)
+    {}
 
     template<typename Callable>
-    requires (!std::is_same_v<std::remove_reference_t<Callable>, FunctionRef<Ret, Args...>> &&
+    requires(!std::is_same_v<std::remove_cvref_t<Callable>, FunctionRef> && // This isnt the copy/move assignment op
               std::is_invocable_r_v<Ret, std::remove_reference_t<Callable>, Args...>)
-    FunctionRef& operator=(Callable&& f)
+    constexpr FunctionRef& operator=(Callable&& f) noexcept
     {
-        callable_ = &f;
-        invoke_ = [](void* f, Args... args) -> Ret { return std::invoke(*static_cast<std::remove_reference_t<Callable>*>(f), std::forward<Args>(args)...); };
+        callable_ = std::addressof(f);
+        invoke_ = invoke_fn<std::remove_reference_t<Callable>>;
         return *this;
     }
 
@@ -36,7 +40,7 @@ public:
         return invoke_(callable_, std::forward<Args>(args)...);
     }
 
-    operator bool() const noexcept
+    /* implicit */ operator bool() const noexcept
     {
         return callable_;
     }
@@ -44,8 +48,14 @@ public:
 private:
     using InvokeFn = Ret(void*, Args...);
 
-    void* callable_   = nullptr;
-    InvokeFn* invoke_ = nullptr;
+    void* callable_;
+    InvokeFn* invoke_;
+
+    template<typename Callable>
+    static Ret invoke_fn(void* f, Args... args)
+    {
+        return std::invoke(*static_cast<Callable*>(f), std::forward<Args>(args)...);
+    }
 };
 
 #endif // !FUNCTION_REF_HPP

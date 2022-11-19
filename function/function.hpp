@@ -19,7 +19,9 @@ namespace detail
     template<typename Callable, typename Ret, typename... Args>
     struct FunctionImpl : public FunctionImplBase<Ret, Args...>
     {
-        explicit FunctionImpl(Callable func) : func_(std::move(func)) {}
+        constexpr explicit FunctionImpl(Callable func) noexcept(std::is_nothrow_move_constructible_v<Callable>) :
+            func_(std::move(func))
+        {}
 
         Ret invoke(Args... args) override
         {
@@ -42,15 +44,19 @@ template<typename R, typename... Args>
 class Function<R(Args...)>
 {
 public:
-    Function() = default;
+    constexpr Function() noexcept :
+        fptr_(nullptr)
+    {}
 
     template<typename F>
-    requires (!std::is_same_v<std::remove_reference_t<F>, Function<R, Args...>> &&
+    requires(!std::is_same_v<std::remove_cvref_t<F>, Function> &&   // This is not the copy/move ctor
               std::is_invocable_r_v<R, std::remove_reference_t<F>, Args...>)
-    Function(F&& f) : fptr_(std::make_unique<detail::FunctionImpl<F, R, Args...>>(std::forward<F>(f))) {}
+    Function(F&& f) :
+        fptr_(std::make_unique<detail::FunctionImpl<F, R, Args...>>(std::forward<F>(f)))
+    {}
 
     template<typename F>
-    requires (!std::is_same_v<std::remove_reference_t<F>, Function<R, Args...>>&&
+    requires(!std::is_same_v<std::remove_cvref_t<F>, Function> &&   // This is not the copy/move assign op
               std::is_invocable_r_v<R, std::remove_reference_t<F>, Args...>)
     Function& operator=(F&& f)
     {
@@ -60,17 +66,13 @@ public:
     
     Function(const Function& other) : fptr_(other.fptr_->clone()) {}
 
-    Function& operator=(const Function& rhs)
-    {
-        if (this == &rhs) return *this;
+    Function(Function&&) = default;
 
-        Function temp(rhs);
-        this->swap(temp);
+    Function& operator=(Function rhs) noexcept
+    {
+        this->swap(rhs);
         return *this;
     }
-
-    Function(Function&&)            = default;
-    Function& operator=(Function&&) = default;
 
     R operator()(Args... args)
     {
@@ -88,7 +90,7 @@ public:
     }
 
 private:
-    std::unique_ptr<detail::FunctionImplBase<R, Args...>> fptr_ = nullptr;
+    std::unique_ptr<detail::FunctionImplBase<R, Args...>> fptr_;
 };
 
 #endif // !FUNCTION_HPP
