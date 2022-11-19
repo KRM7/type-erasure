@@ -2,6 +2,7 @@
 #define ANY_HPP
 
 #include <utility>
+#include <memory>
 #include <type_traits>
 #include <typeinfo>
 #include <stdexcept>
@@ -11,98 +12,89 @@ namespace any
     namespace detail
     {
         template<typename T>
-        void* clone_data(void* data) requires(!std::is_array_v<T>)
+        constexpr void* clone_data(void* data) requires(!std::is_array_v<T>)
         {
-            if (!data) return nullptr;
-
-            return new T(*static_cast<T*>(data));
+            return data ? new T(*static_cast<T*>(data)) : nullptr;
         }
 
         template<typename T>
-        void deleter(void* data) requires(!std::is_array_v<T>)
+        constexpr void deleter(void* data) noexcept requires(!std::is_array_v<T>)
         {
             delete static_cast<T*>(data);
         }
 
         template<typename T>
-        const std::type_info& type(void* data)
+        const std::type_info& type(void* data) noexcept
         {
-            return typeid(*static_cast<T*>(data));
+            return data ? typeid(*static_cast<T*>(data)) : typeid(void);
         }
     }
 
     class Any
     {
     public:
-        Any() noexcept :
+        constexpr Any() noexcept :
             data_(nullptr), vptr_(nullptr)
         {}
 
-        template<typename T, std::enable_if_t<!std::is_same_v<std::remove_reference_t<T>, Any>, bool> = false,
-                             std::enable_if_t<!std::is_array_v<std::remove_reference_t<T>>, bool> = false>
+        template<typename T, std::enable_if_t<!std::is_same_v<std::remove_cvref_t<T>, Any>, bool> = false> // This isnt the copy or move ctor
         Any(T&& data) :
-            data_(new std::remove_reference_t<T>(std::forward<T>(data))),
-            vptr_(new Vtable(detail::clone_data<std::remove_reference_t<T>>,
-                             detail::deleter<std::remove_reference_t<T>>,
-                             detail::type<std::remove_reference_t<T>>))
+            data_(new std::remove_cvref_t<T>(std::forward<T>(data))),
+            vptr_(std::addressof(detail::any_vtable<std::remove_cvref_t<T>>))
         {}
 
-        Any(const Any& other) :
-            data_(other.clone_data()),
-            vptr_(new Vtable(*other.vptr_))
+        constexpr Any(const Any& other) :
+            data_(other.data_ ? other.vptr_->clone_(other.data_) : nullptr),
+            vptr_(other.vptr_)
         {}
 
-        Any& operator=(const Any& rhs)
+        constexpr Any(Any&& other) noexcept : Any()
         {
-            if (this == &rhs) return *this;
-
-            Any temp(rhs);
-            swap(temp);
-            return *this;
+            swap(other);
         }
 
-        Any(Any&& other) noexcept : Any() { swap(other); }
-
-        Any& operator=(Any&& rhs) noexcept
+        constexpr Any& operator=(Any rhs) noexcept
         {
-            if (this == &rhs) return *this;
             swap(rhs);
             return *this;
         }
 
-        ~Any() { reset(); }
-
-        bool has_value() const noexcept { return data_; }
-
-        const std::type_info& type() const noexcept
-        {
-            return has_value() ? vptr_->type_(data_) : typeid(void);
-        }
-
-        void reset() noexcept
-        {
-            if (has_value())
-            {
-                vptr_->delete_(data_);
-                delete vptr_;
-                data_ = vptr_ = nullptr;
-            }
-        }
-
-        void swap(Any& other) noexcept
+        constexpr void swap(Any& other) noexcept
         {
             std::swap(data_, other.data_);
             std::swap(vptr_, other.vptr_);
         }
 
+        constexpr ~Any() noexcept
+        {
+            if (data_) vptr_->delete_(data_);
+        }
+
+        constexpr bool has_value() const noexcept
+        {
+            return data_;
+        }
+
+        constexpr const std::type_info& type() const noexcept
+        {
+            return data_ ? vptr_->type_(data_) : typeid(void);
+        }
+
+        constexpr void reset() noexcept
+        {
+            if (data_) vptr_->delete_(data_);
+            data_ = nullptr;
+            vptr_ = nullptr;
+        }
+
         template<typename T>
         T get()
         {
-            if (typeid(T).name() == type().name())
+            if (data_ && typeid(T).name() == type().name())
             {
                 return *static_cast<T*>(data_);
             }
-            throw std::logic_error("Bad cast");
+            throw std::logic_error("Bad Any cast");
         }
 
     private:
@@ -140,9 +132,7 @@ namespace any
         };
 
         void* data_;
-        Vtable* vptr_;
-
-        void* clone_data() const { return has_value() ? vptr_->clone_(data_) : nullptr; }
+        const detail::AnyVtable* vptr_;
     };
 }
 
