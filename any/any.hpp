@@ -28,6 +28,24 @@ namespace any
         {
             return data ? typeid(*static_cast<T*>(data)) : typeid(void);
         }
+
+        struct AnyVtable
+        {
+            using CloneFn  = void*(void*);
+            using DeleteFn = void(void*);
+            using TypeFn   = const std::type_info&(void*);
+
+            CloneFn*  clone_;
+            DeleteFn* delete_;
+            TypeFn*   type_;
+
+            constexpr AnyVtable(CloneFn* clone, DeleteFn* deleter, TypeFn* type) noexcept :
+                clone_(clone), delete_(deleter), type_(type)
+            {}
+        };
+
+        template<typename T>
+        inline constexpr AnyVtable any_vtable = { detail::clone_data<T>, detail::deleter<T>, detail::type<T> };
     }
 
     class Any
@@ -98,39 +116,6 @@ namespace any
         }
 
     private:
-        struct Vtable
-        {
-            using CloneFn  = void*(void*);
-            using DeleteFn = void(void*);
-            using TypeFn   = const std::type_info&(void*);
-
-            CloneFn*  clone_;
-            DeleteFn* delete_;
-            TypeFn*   type_;
-
-            Vtable() :
-                clone_(nullptr), delete_(nullptr), type_(nullptr)
-            {}
-
-            Vtable(CloneFn* clone, DeleteFn* deleter, TypeFn* type) :
-                clone_(clone), delete_(deleter), type_(type)
-            {}
-
-            void reset() noexcept
-            {
-                clone_  = nullptr;
-                delete_ = nullptr;
-                type_   = nullptr;
-            }
-
-            void swap(Vtable& other) noexcept
-            {
-                std::swap(clone_, other.clone_);
-                std::swap(delete_, other.delete_);
-                std::swap(type_, other.type_);
-            }
-        };
-
         void* data_;
         const detail::AnyVtable* vptr_;
     };
