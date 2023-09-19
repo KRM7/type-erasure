@@ -66,7 +66,7 @@ namespace any
             vptr_(other.vptr_)
         {}
 
-        constexpr Any(Any&& other) noexcept : Any()
+        constexpr Any(Any&& other) noexcept
         {
             swap(other);
         }

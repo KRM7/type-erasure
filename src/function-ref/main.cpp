@@ -44,7 +44,4 @@ int main()
     FunctionRef<double(value*)> getter = &value::val;
     value val;
     std::cout << "value: " << getter(&val) << "\n";
-
-    // constexpr
-    constexpr FunctionRef<int(int)> sq2 = square<int>;
 }

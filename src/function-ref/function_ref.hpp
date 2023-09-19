@@ -20,17 +20,17 @@ public:
     template<typename Callable>
     requires(!std::is_same_v<std::remove_cvref_t<Callable>, FunctionRef> && // This isnt the copy/move ctor
               std::is_invocable_r_v<Ret, std::remove_reference_t<Callable>, Args...>)
-    constexpr FunctionRef(Callable&& f) noexcept :
-        callable_(std::addressof(f)),
+    FunctionRef(Callable&& f) noexcept :
+        callable_(reinterpret_cast<void*>(std::addressof(f))),
         invoke_(invoke_fn<std::remove_reference_t<Callable>>)
     {}
 
     template<typename Callable>
     requires(!std::is_same_v<std::remove_cvref_t<Callable>, FunctionRef> && // This isnt the copy/move assignment op
               std::is_invocable_r_v<Ret, std::remove_reference_t<Callable>, Args...>)
-    constexpr FunctionRef& operator=(Callable&& f) noexcept
+    FunctionRef& operator=(Callable&& f) noexcept
     {
-        callable_ = std::addressof(f);
+        callable_ = reinterpret_cast<void*>(std::addressof(f));
         invoke_ = invoke_fn<std::remove_reference_t<Callable>>;
         return *this;
     }
@@ -40,9 +40,9 @@ public:
         return invoke_(callable_, std::forward<Args>(args)...);
     }
 
-    /* implicit */ operator bool() const noexcept
+    explicit operator bool() const noexcept
     {
-        return callable_;
+        return bool(callable_);
     }
 
 private:
@@ -54,7 +54,7 @@ private:
     template<typename Callable>
     static Ret invoke_fn(void* f, Args... args)
     {
-        return std::invoke(*static_cast<Callable*>(f), std::forward<Args>(args)...);
+        return std::invoke(*reinterpret_cast<Callable*>(f), std::forward<Args>(args)...);
     }
 };
 
